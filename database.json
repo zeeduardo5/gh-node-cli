@@ -1,0 +1,13 @@
+{
+ 
+    "dev": {
+      "driver": "pg",
+      "user": "postgres",
+      "password": "<pwd>",
+      "host": "<host>",
+      "database": "<name>",
+      "port": "<port>",
+      "schema": "<schema>"
+    },
+    "sql-file" : true
+  }
