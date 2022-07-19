@@ -60,7 +60,7 @@ async function dMlistUsers(filter) {
     } else if (data?.location) {
       selectQuery +=
         pgPromise({}).
-          as.format(' WHERE UPPER(u.location = $1)',
+          as.format(' WHERE UPPER(u.location) = $1',
             `${data.location.toUpperCase()}`);
     } else if (data?.planguage) {
 
