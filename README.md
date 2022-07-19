@@ -1,4 +1,4 @@
-# GhNodecli
+# gh-node-cli
 
 GhNodecli is a command line interface to fetch the GitHub and then list the fetched users from a local database.
 
