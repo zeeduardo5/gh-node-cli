@@ -2,6 +2,14 @@
 
 GhNodecli is a command line interface to fetch the GitHub and then list the fetched users from a local database.
 
+## Requirements
+Node > 14.0.0
+
+## Clone the project
+```bash
+git clone https://github.com/zeeduardo5/gh-node-cli.git
+cd gh-node-cli
+```
 ## Installation
 
 Use the package manager [npm](https://docs.npmjs.com/try-the-latest-stable-version-of-npm) to install the dependencies of the application.
