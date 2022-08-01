@@ -1,8 +1,16 @@
 import * as pgPromise from 'pg-promise';
+import { QueryParam } from 'pg-promise';
+import { User } from '../api/apiTypes';
 import { compose } from '../helpers/compose';
+import { closeDb, getDbConnection } from './dbConnection';
+import {
+  DbArgs, DbConnectFn, DbFn, DbLanguageFn,
+  Filters,
+  LanguageArgs, PgDb
+} from './dbTypes';
 
-async function dMInsertUser(user) {
-  const insert = async (args) => {
+async function dMInsertUser(user): Promise<User> {
+  const insert: DbFn = async (args: DbArgs) => {
     const { db, data } = args;
     try {
       await db.none(
@@ -23,97 +31,76 @@ async function dMInsertUser(user) {
     }
   }
 
-  const insertLanguages = async (args) => {
-    const { db, data } = args;
-    await Promise.all(Object.keys((data.languages))
-      .map(async (lang) => await insertLanguagesInDatabase(data.id, lang, db)))
-    return args;
-  }
-
-  const insertLanguagesInDatabase = async (userId, language, db) => {
-    const data = { userId, language };
-    try {
-      await db.none(
-        'INSERT INTO languages(user_id, name) ' +
-        'VALUES(${data.userId}, ${data.language})' +
-        'ON CONFLICT (user_id, name) DO NOTHING'
-        , {
-          data,
-        });
-    } catch (e) {
-      throw new Error(e);
+  const insertLanguages: DbFn
+    = async (args: DbArgs) => {
+      const { db, data } = args;
+      await Promise.all(Object.keys((data.languages))
+        .map(async (lang: string) =>
+          await insertLanguagesInDatabase(data.id, lang, db)))
+      return args;
     }
-  }
-  return await compose(closeDb, insertLanguages, insert, dbConnect)(user);
+
+  const insertLanguagesInDatabase: DbLanguageFn =
+    async (userId: number, language: string, db: PgDb) => {
+      const data: LanguageArgs = { userId, language };
+      try {
+        await db.none(
+          'INSERT INTO languages(user_id, name) ' +
+          'VALUES(${data.userId}, ${data.language})' +
+          'ON CONFLICT (user_id, name) DO NOTHING'
+          , {
+            data,
+          });
+      } catch (e) {
+        throw new Error(e);
+      }
+    }
+  return await compose(closeDb, insertLanguages, insert, dbConnect)
+  ({ data: user });
 }
 
-async function dMlistUsers(filter) {
-  const listUsersFromDb = async (args) => {
-    const { db, data } = args;
-
-    let selectQuery = pgPromise({})
+async function dMlistUsers(filters: Filters): Promise<User[]> {
+  const listUsersFromDb: DbFn = async (args: DbArgs) => {
+    const { db, filters } = args;
+    let selectQuery: QueryParam = pgPromise({})
       .as.format('SELECT u.login, u.location, u.name, u.public_repos' +
         ' FROM users AS u');
-    if (data?.username) {
+    if (filters?.username) {
       selectQuery +=
-        pgPromise({}).as.format(' WHERE u.login = $1', `${data.username}`);
-    } else if (data?.location) {
+        pgPromise({}).as.format(' WHERE u.login = $1', `${filters.username}`);
+    } else if (filters?.location) {
       selectQuery +=
         pgPromise({}).
           as.format(' WHERE UPPER(u.location) = $1',
-            `${data.location.toUpperCase()}`);
-    } else if (data?.planguage) {
+            `${filters.location.toUpperCase()}`);
+    } else if (filters?.planguage) {
 
       selectQuery +=
         pgPromise({}).as.format(
           ' LEFT JOIN languages AS l ON u.id = l.user_id' +
-          ' WHERE UPPER(l.name) = $1', `${data.planguage.toUpperCase()}`);
+          ' WHERE UPPER(l.name) = $1', `${filters.planguage.toUpperCase()}`);
     }
     try {
-      const userList = await db.any(selectQuery);
+      const userList: User[] = await db.any(selectQuery);
       return { data: userList, db }
     } catch (e) {
       throw new Error(e);
     }
   }
 
-  return await compose(closeDb, listUsersFromDb, dbConnect)(filter);
+  return await compose(closeDb, listUsersFromDb, dbConnect)({ filters });
 
 }
 
 
 
-const dbConnect = async (data) => {
+const dbConnect: DbConnectFn = async (args: DbArgs) => {
   try {
-    const db = await getDbConnection();
-    return { data, db }
+    args.db = await getDbConnection();
+    return args;
   } catch (e) {
     throw new Error(e);
   }
 };
-
-const closeDb = async (args) => {
-  const { db, data } = args;
-  db.$pool.end();
-  return data;
-}
-
-async function getDbConnection() {
-  const databaseConfig = {
-    "host": process.env.DB_HOST,
-    "port": parseInt(process.env.DB_PORT),
-    "database": process.env.DB_NAME,
-    "user": process.env.DB_USER,
-    "password": process.env.DB_PWD
-  };
-
-  try {
-    const pgp = pgPromise({});
-    const db = pgp(databaseConfig);
-    return db;
-  } catch (e) {
-    throw new Error('Cannot connect to database :' + e);
-  }
-}
 
 export { dMInsertUser, dMlistUsers }
