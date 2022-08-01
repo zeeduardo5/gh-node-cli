@@ -1,11 +1,21 @@
-import axios from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import { dMInsertUser, dMlistUsers } from '../datamanager/users';
 import { compose } from '../helpers/compose'
+import {
+  GhFn,
+  Languages,
+  User,
+  UserFn,
+  RepoLanguageFn,
+  Repository,
+  AuthConfig
+} from './apiTypes';
 
-async function fetchUserFromApi(username) {
-  const getUser = async (username) => {
+
+async function fetchUserFromApi(username): Promise<void> {
+  const getUser: GhFn = async (username: string) => {
     try {
-      const response =
+      const response: AxiosResponse =
         await axios.get(process.env.API_URL + `/users/${username}`,
           config(process.env.API_KEY));
       return response.data;
@@ -18,27 +28,28 @@ async function fetchUserFromApi(username) {
     }
   }
 
-  const getUserRepos = async (user) => {
+  const getUserRepos: GhFn = async (user: User) => {
     try {
-      const response = await axios
+      const response: AxiosResponse = await axios
         .get(process.env.API_URL + `/users/${user.login}/repos`,
           config(process.env.API_KEY));
 
-      user.fullRepos = response.data.reduce((filtered, option) => {
-        if (!option.fork) {
-          filtered.push(option.full_name);
-        }
-        return filtered;
-      }, []);
+      user.fullRepos = response.data
+        .reduce((filtered: string[], option: Repository) => {
+          if (!option.fork) {
+            filtered.push(option.full_name);
+          }
+          return filtered;
+        }, []);
       return user;
     } catch (e) {
       throw new Error(e);
     }
   }
 
-  const repoLanguage = async (repoName) => {
+  const repoLanguage: RepoLanguageFn = async (repoName: string) => {
     try {
-      const response = await axios.
+      const response: AxiosResponse = await axios.
         get(process.env.API_URL + `/repos/${repoName}/languages`,
           config(process.env.API_KEY));
 
@@ -48,11 +59,11 @@ async function fetchUserFromApi(username) {
     }
   }
 
-  const getLanguages = async (user) => {
-    const languages = {};
-    await Promise.all(user.fullRepos.map(async (repoName) => {
-      const repoLanguages = await repoLanguage(repoName);
-      Object.keys(repoLanguages).forEach((key) => {
+  const getLanguages: GhFn = async (user: User) => {
+    const languages: Languages = {};
+    await Promise.all(user.fullRepos.map(async (repoName: string) => {
+      const repoLanguages: Languages = await repoLanguage(repoName);
+      Object.keys(repoLanguages).forEach((key: string) => {
         if (!languages[key]) {
           languages[key] = true;
         }
@@ -62,33 +73,36 @@ async function fetchUserFromApi(username) {
     return user;
   }
 
-  const insertUserInDb = async (user) => {
+  const insertUserInDb: UserFn = async (user: User) => {
     await dMInsertUser(user);
     return user;
   };
 
-  const userInDb = await dMlistUsers({ username });
+  const userInDb: User[] = await dMlistUsers({ username });
+
   if (userInDb && userInDb.length > 0) {
-    console.log(userInDb[0]);
+    console.info(userInDb[0]);
   } else {
-    const user = compose(
+    const user: User = await compose(
       insertUserInDb,
       getLanguages,
       getUserRepos,
-      getUser)
+      getUser)(username);
 
-    const { login, location, name, public_repos } = await user(username);
-
-    console.log({ login, location, name, public_repos });
+    console.info({
+      login: user.login,
+      location: user.location,
+      name: user.name,
+      public_repos: user.public_repos
+    });
   }
-
 }
 
-async function listUsersFromDb(args) {
-  console.log(await dMlistUsers(args));
+async function listUsersFromDb(args): Promise<void> {
+  console.info(await dMlistUsers(args));
 }
 
-const config = (key) => ({
+const config: AuthConfig = (key: string) => ({
   headers: { Authorization: 'token ' + key }
 });
 
